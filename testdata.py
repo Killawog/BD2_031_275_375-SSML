@@ -29,8 +29,8 @@ import sys
 sc = SparkContext("local[2]", "APSU")
 ssc = StreamingContext(sc, 1)
 sql_context=SQLContext(sc)
-flag=0
-#model=lm.LogisticRegression(warm_start=True)
+
+
 
 def convert_jsn(data):
 	jsn=json.loads(data)
@@ -42,6 +42,8 @@ def convert_jsn(data):
 
 def convert_df(data):
 	global model
+	global x
+	global y
 	if data.isEmpty():
 		return
 
@@ -92,23 +94,9 @@ def convert_df(data):
 	y=np.array(new_df_target.select('categoryIndex').collect())
 	
 	x = [np.concatenate(i) for i in x]
-
 	
-	model=lm.LogisticRegression(warm_start=True)
-	model=model.fit(x,y.ravel())
-	print("u r a genius")
-
 	
-	#model=SGDClassifier(alpha=0.0001, loss='log', penalty='l2', n_jobs=-1, shuffle=True)
-	#model=MultinomialNB()
-	#model.partial_fit(x,y.ravel(), classes=[0.0,1.0])
-	#print("u r a genius")
-
-
-
 lines = ssc.socketTextStream("localhost",6100).map(convert_jsn).foreachRDD(convert_df)
-
-
 
 
 
@@ -116,8 +104,7 @@ ssc.start()
 ssc.awaitTermination(200)
 ssc.stop()
 
-filename='model.sav'
-pickle.dump(model, open(filename, 'wb'))
-print("Model saved successfully")
-
+loaded_model=pickle.load(open('model.sav', 'rb'))
+result=loaded_model.score(x, y)
+print(result)
 
