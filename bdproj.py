@@ -15,6 +15,9 @@ from pyspark.sql.functions import lit
 from sklearn.linear_model import SGDClassifier
 from pyspark.sql.functions import array
 from sklearn.naive_bayes import MultinomialNB
+from sklearn.neural_network import MLPClassifier
+import matplotlib.pyplot as plt
+
 import pickle
 from sklearn import model_selection
 import pyspark.sql.types as tp
@@ -41,18 +44,24 @@ def convert_jsn(data):
 	return l 	
 
 def convert_df(data):
-	global model
+	global model, model_lm, model_sgd, model_mlp, result2,result3, result1, x, y
 	if data.isEmpty():
 		return
 
 	ss=SparkSession(data.context)
 	data=data.collect()[0]
+	#print(data)
 	col=[f"feature{i}" for i in range(len(data[0]))]
 	try:
 		df=ss.createDataFrame(data,col)
 	except:
 		return
 	#df.show()
+	data2=[('ham','ham','ham')]
+	newRow=ss.createDataFrame(data2, col)
+	df=df.union(newRow)
+	#df.show(11)
+		
 	
 	print('\n\nDefining the  stages.................\n')
 	df_new=df
@@ -73,7 +82,7 @@ def convert_df(data):
 	print("Word2vec done")
 
 	
-	indexer = StringIndexer(inputCol="feature2", outputCol="categoryIndex")
+	indexer = StringIndexer(inputCol="feature2", outputCol="categoryIndex", stringOrderType='alphabetAsc')
 
 	print("Target column Done")
 	
@@ -83,9 +92,11 @@ def convert_df(data):
 	pipeline=Pipeline(stages=[regex, remover2, stage_3, indexer])
 	pipelineFit=pipeline.fit(df)
 	dataset=pipelineFit.transform(df)
+	#dataset.show(11)
+	dataset=dataset.filter(dataset.feature1!='ham')
 	new_df=dataset.select(['vector'])
 	new_df_target=dataset.select(['categoryIndex'])
-	new_df.show(5)
+	#new_df.show()
 
 
 	x=np.array(new_df.select('vector').collect())
@@ -94,30 +105,53 @@ def convert_df(data):
 	x = [np.concatenate(i) for i in x]
 
 	
-	model=lm.LogisticRegression(warm_start=True)
-	model=model.fit(x,y.ravel())
-	print("u r a genius")
+	model_lm=lm.LogisticRegression(warm_start=True)
+	model_lm=model_lm.fit(x,y.ravel())
+	print("u r a genius pt.1")
+	result1=model_lm.score(x, y)
+	print("Logistic Regression accuracy: ", result1)
 
 	
-	#model=SGDClassifier(alpha=0.0001, loss='log', penalty='l2', n_jobs=-1, shuffle=True)
+	model_sgd=SGDClassifier(alpha=0.0001, loss='log', penalty='l2', n_jobs=-1, shuffle=True)
 	#model=MultinomialNB()
-	#model.partial_fit(x,y.ravel(), classes=[0.0,1.0])
-	#print("u r a genius")
-
+	model_sgd.partial_fit(x,y.ravel(), classes=[0.0,1.0])
+	#model.fit(x,y)
+	print("u r a genius pt.2")
+	result2=model_sgd.score(x, y)
+	print("SGD Classifier accuacy: ",result2)
+	
+	model_mlp=MLPClassifier(random_state=1, max_iter=300)
+	model_mlp.partial_fit(x,y.ravel(), classes=[0.0,1.0])
+	print("u r a genius pt.3")
+	result3=model_mlp.score(x, y)
+	print("MLP Classifier accuacy: ",result3)	
+	
+	
+	
 
 
 lines = ssc.socketTextStream("localhost",6100).map(convert_jsn).foreachRDD(convert_df)
 
 
 
-
-
 ssc.start() 
-ssc.awaitTermination(200)
+ssc.awaitTermination(500)
 ssc.stop()
 
-filename='model.sav'
-pickle.dump(model, open(filename, 'wb'))
-print("Model saved successfully")
+filename='model_lm_500.sav'
+pickle.dump(model_lm, open(filename, 'wb'))
+print("LM Model saved successfully")
+
+filename='model_sgd_500.sav'
+pickle.dump(model_sgd, open(filename, 'wb'))
+print("LM Model saved successfully")
+
+filename='model_mlp_500.sav'
+pickle.dump(model_mlp, open(filename, 'wb'))
+print("LM Model saved successfully")
+
+result=[result1, result2, result3]
+names=['Logistic Regression', 'SGD Classifier', 'MLP Classifer']
+plt.bar(names, result)
 
 

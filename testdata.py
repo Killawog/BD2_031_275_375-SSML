@@ -29,7 +29,7 @@ import sys
 sc = SparkContext("local[2]", "APSU")
 ssc = StreamingContext(sc, 1)
 sql_context=SQLContext(sc)
-
+loaded_model=pickle.load(open('model_sgd_100.sav', 'rb'))
 
 
 def convert_jsn(data):
@@ -54,6 +54,9 @@ def convert_df(data):
 		df=ss.createDataFrame(data,col)
 	except:
 		return
+	data2=[('ham','ham','ham')]
+	newRow=ss.createDataFrame(data2, col)
+	df=df.union(newRow)
 	#df.show()
 	
 	print('\n\nDefining the  stages.................\n')
@@ -75,7 +78,7 @@ def convert_df(data):
 	print("Word2vec done")
 
 	
-	indexer = StringIndexer(inputCol="feature2", outputCol="categoryIndex")
+	indexer = StringIndexer(inputCol="feature2", outputCol="categoryIndex",  stringOrderType='alphabetAsc')
 
 	print("Target column Done")
 	
@@ -85,6 +88,7 @@ def convert_df(data):
 	pipeline=Pipeline(stages=[regex, remover2, stage_3, indexer])
 	pipelineFit=pipeline.fit(df)
 	dataset=pipelineFit.transform(df)
+	dataset=dataset.filter(dataset.feature1!='ham')
 	new_df=dataset.select(['vector'])
 	new_df_target=dataset.select(['categoryIndex'])
 	new_df.show(5)
@@ -96,15 +100,17 @@ def convert_df(data):
 	x = [np.concatenate(i) for i in x]
 	
 	
+	result=loaded_model.score(x, y)
+	print(result)
+	
+	
 lines = ssc.socketTextStream("localhost",6100).map(convert_jsn).foreachRDD(convert_df)
 
 
 
 ssc.start() 
-ssc.awaitTermination(200)
+ssc.awaitTermination(400)
 ssc.stop()
 
-loaded_model=pickle.load(open('model.sav', 'rb'))
-result=loaded_model.score(x, y)
-print(result)
+
 
