@@ -1,4 +1,6 @@
 # importing required libraries
+# higher accuracy for larger batches (500 performed better than 100)
+
 import numpy as np
 import sys, pyspark, json
 from pyspark import SparkContext
@@ -16,6 +18,7 @@ from sklearn.linear_model import SGDClassifier
 from pyspark.sql.functions import array
 from sklearn.naive_bayes import MultinomialNB
 import pickle
+import matplotlib.pyplot as plt
 from sklearn import model_selection
 import pyspark.sql.types as tp
 from pyspark.ml import Pipeline
@@ -29,7 +32,12 @@ import sys
 sc = SparkContext("local[2]", "APSU")
 ssc = StreamingContext(sc, 1)
 sql_context=SQLContext(sc)
-loaded_model=pickle.load(open('model_sgd_100.sav', 'rb'))
+loaded_model_lm=pickle.load(open('model_lm_500.sav', 'rb'))
+loaded_model_sgd=pickle.load(open('model_sgd_500.sav', 'rb'))
+loaded_model_mlp=pickle.load(open('model_mlp_500.sav', 'rb'))
+result1=0
+result2=0
+result3=0
 
 
 def convert_jsn(data):
@@ -41,9 +49,13 @@ def convert_jsn(data):
 	return l 	
 
 def convert_df(data):
+
 	global model
 	global x
 	global y
+	global result1
+	global result2
+	global result3
 	if data.isEmpty():
 		return
 
@@ -100,8 +112,14 @@ def convert_df(data):
 	x = [np.concatenate(i) for i in x]
 	
 	
-	result=loaded_model.score(x, y)
-	print(result)
+	result1=result1+loaded_model_lm.score(x, y)
+	print("Logistic regression accuracy: ",result1)
+	
+	result2=result2+loaded_model_sgd.score(x, y)
+	print("SGD Classifier accuracy: ",result2)
+	
+	result3=result3+loaded_model_mlp.score(x, y)
+	print("MLP Classiifier accuracy: ",result3)
 	
 	
 lines = ssc.socketTextStream("localhost",6100).map(convert_jsn).foreachRDD(convert_df)
@@ -109,8 +127,20 @@ lines = ssc.socketTextStream("localhost",6100).map(convert_jsn).foreachRDD(conve
 
 
 ssc.start() 
-ssc.awaitTermination(400)
+ssc.awaitTermination(100)
 ssc.stop()
+
+avg1=(result1*100)/3300
+avg2=(result2*100)/3300
+avg3=(result3*100)/3300
+
+results=[avg1, avg2, avg3]
+names=['Logistic Regression', 'SGD Classifier', 'MLP Classifer']
+
+plt.bar(names, results)
+plt.title("Average performance of models on test dataset (batch size 500")
+plt.show()
+
 
 
 
