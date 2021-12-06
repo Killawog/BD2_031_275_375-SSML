@@ -1,5 +1,6 @@
 # importing required libraries
-# higher accuracy for larger batches (500 performed better than 100)
+# higher accuracy for larger batches (500 and 700 performed better than 100)
+#false negatives are low - not predicting ham's as spam which is good!
 
 import numpy as np
 import sys, pyspark, json
@@ -18,6 +19,8 @@ from sklearn.linear_model import SGDClassifier
 from pyspark.sql.functions import array
 from sklearn.naive_bayes import MultinomialNB
 import pickle
+
+from sklearn.metrics import confusion_matrix, classification_report
 import matplotlib.pyplot as plt
 from sklearn import model_selection
 import pyspark.sql.types as tp
@@ -25,19 +28,20 @@ from pyspark.ml import Pipeline
 from pyspark.ml.feature import StringIndexer,VectorAssembler #OneHotEncoderEstimator, 
 from pyspark.ml.feature import CountVectorizer, StopWordsRemover, Word2Vec, RegexTokenizer
 #from pyspark.ml.classification import LogisticRegression
-import sklearn.linear_model as lm
+import sklearn.linear_model as lms
 from pyspark.sql import Row, Column
 import sys
 
 sc = SparkContext("local[2]", "APSU")
 ssc = StreamingContext(sc, 1)
 sql_context=SQLContext(sc)
-loaded_model_lm=pickle.load(open('model_lm_500.sav', 'rb'))
-loaded_model_sgd=pickle.load(open('model_sgd_500.sav', 'rb'))
-loaded_model_mlp=pickle.load(open('model_mlp_500.sav', 'rb'))
+loaded_model_lm=pickle.load(open('saved_models/model_lm_500.sav', 'rb'))
+loaded_model_sgd=pickle.load(open('saved_models/model_sgd_500.sav', 'rb'))
+loaded_model_mlp=pickle.load(open('saved_models/model_mlp_500.sav', 'rb'))
 result1=0
 result2=0
 result3=0
+count=0
 
 
 def convert_jsn(data):
@@ -56,6 +60,7 @@ def convert_df(data):
 	global result1
 	global result2
 	global result3
+	global count
 	if data.isEmpty():
 		return
 
@@ -121,24 +126,30 @@ def convert_df(data):
 	result3=result3+loaded_model_mlp.score(x, y)
 	print("MLP Classiifier accuracy: ",result3)
 	
+	pred=loaded_model_lm.predict(x)
+	print(confusion_matrix(y, pred))
+	
+	print(classification_report(y,pred))
+	
+	count=count+1
 	
 lines = ssc.socketTextStream("localhost",6100).map(convert_jsn).foreachRDD(convert_df)
 
 
 
 ssc.start() 
-ssc.awaitTermination(100)
+ssc.awaitTermination(50)
 ssc.stop()
 
-avg1=(result1*100)/3300
-avg2=(result2*100)/3300
-avg3=(result3*100)/3300
+avg1=(result1*100)/count
+avg2=(result2*100)/count
+avg3=(result3*100)/count
 
 results=[avg1, avg2, avg3]
 names=['Logistic Regression', 'SGD Classifier', 'MLP Classifer']
 
 plt.bar(names, results)
-plt.title("Average performance of models on test dataset (batch size 500")
+plt.title("Average performance of models on test dataset (batch size 1000)")
 plt.show()
 
 

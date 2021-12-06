@@ -135,23 +135,31 @@ lines = ssc.socketTextStream("localhost",6100).map(convert_jsn).foreachRDD(conve
 
 
 ssc.start() 
-ssc.awaitTermination(500)
+ssc.awaitTermination(150)
 ssc.stop()
 
-filename='model_lm_500.sav'
+filename='model_lm_1000.sav'
 pickle.dump(model_lm, open(filename, 'wb'))
 print("LM Model saved successfully")
 
-filename='model_sgd_500.sav'
+filename='model_sgd_1000.sav'
 pickle.dump(model_sgd, open(filename, 'wb'))
 print("LM Model saved successfully")
 
-filename='model_mlp_500.sav'
+filename='model_mlp_1000.sav'
 pickle.dump(model_mlp, open(filename, 'wb'))
 print("LM Model saved successfully")
 
-result=[result1, result2, result3]
+results=[result1, result2, result3]
 names=['Logistic Regression', 'SGD Classifier', 'MLP Classifer']
-plt.bar(names, result)
+
+#filename='final accuracies'
+#file1=open(filename, 'w')
+#file1.writelines(names)
+#file1.writelines(results)
+#file1.close()
+
+plt.bar(names, results)
+plt.show()
 
 
