@@ -19,6 +19,8 @@ from sklearn.linear_model import SGDClassifier
 from pyspark.sql.functions import array
 from sklearn.naive_bayes import MultinomialNB
 import pickle
+from sklearn.cluster import MiniBatchKMeans
+from sklearn.decomposition import PCA
 
 from sklearn.metrics import confusion_matrix, classification_report
 import matplotlib.pyplot as plt
@@ -38,6 +40,7 @@ sql_context=SQLContext(sc)
 loaded_model_lm=pickle.load(open('saved_models/model_lm_500.sav', 'rb'))
 loaded_model_sgd=pickle.load(open('saved_models/model_sgd_500.sav', 'rb'))
 loaded_model_mlp=pickle.load(open('saved_models/model_mlp_500.sav', 'rb'))
+loaded_model_kmeans=pickle.load(open('saved_models/model_clustering_1000.sav', 'rb'))
 result1=0
 result2=0
 result3=0
@@ -61,6 +64,7 @@ def convert_df(data):
 	global result2
 	global result3
 	global count
+	global kmeans
 	if data.isEmpty():
 		return
 
@@ -116,6 +120,8 @@ def convert_df(data):
 	
 	x = [np.concatenate(i) for i in x]
 	
+	kmeans=MiniBatchKMeans(n_clusters=2, random_state=0, batch_size=1000)
+	kmeans=kmeans.partial_fit(x)
 	
 	result1=result1+loaded_model_lm.score(x, y)
 	print("Logistic regression accuracy: ",result1)
@@ -148,10 +154,21 @@ avg3=(result3*100)/count
 results=[avg1, avg2, avg3]
 names=['Logistic Regression', 'SGD Classifier', 'MLP Classifer']
 
-plt.bar(names, results)
-plt.title("Average performance of models on test dataset (batch size 1000)")
+#plt.bar(names, results)
+#plt.title("Average performance of models on test dataset (batch size 1000)")
+#plt.show()
+
+
+#clustering
+kpred=kmeans.predict(x)
+print(kpred)
+pca=PCA(n_components=2)
+scatter_plot_points=pca.fit_transform(x)
+colors=['r','b']
+x_axis=[o[0] for o in scatter_plot_points]
+y_axis=[o[1] for o in scatter_plot_points]
+fig, ax=plt.subplots(figsize=(20,10))
+ax.scatter(x_axis, y_axis, c=[colors[d] for d in kpred])
 plt.show()
-
-
 
 
