@@ -47,6 +47,7 @@ loaded_model_nb=pickle.load(open('saved_models/500/model_nb_500.sav', 'rb'))
 result1=0
 result2=0
 result3=0
+result0=0
 count=0
 
 
@@ -65,7 +66,8 @@ def convert_df(data):
 	global y
 	global result1
 	global result2
-	global result3, result0
+	global result3
+	global result0
 	global count
 	global kmeans
 	if data.isEmpty():
@@ -151,7 +153,7 @@ lines = ssc.socketTextStream("localhost",6100).map(convert_jsn).foreachRDD(conve
 
 
 ssc.start() 
-ssc.awaitTermination(50)
+ssc.awaitTermination(200)
 ssc.stop()
 
 avg0=(result0*100)/count
@@ -163,7 +165,7 @@ results=[avg0, avg1, avg2, avg3]
 names=['NB', 'Logistic Regression', 'SGD Classifier', 'MLP Classifer']
 
 plt.bar(names, results)
-plt.title("Average performance of models on test dataset (batch size 500)")
+plt.title("Average performance of models on test dataset (batch size 100)")
 plt.show()
 
 
