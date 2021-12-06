@@ -37,10 +37,13 @@ import sys
 sc = SparkContext("local[2]", "APSU")
 ssc = StreamingContext(sc, 1)
 sql_context=SQLContext(sc)
-loaded_model_lm=pickle.load(open('saved_models/model_lm_500.sav', 'rb'))
-loaded_model_sgd=pickle.load(open('saved_models/model_sgd_500.sav', 'rb'))
-loaded_model_mlp=pickle.load(open('saved_models/model_mlp_500.sav', 'rb'))
-loaded_model_kmeans=pickle.load(open('saved_models/model_clustering_1000.sav', 'rb'))
+loaded_model_lm=pickle.load(open('saved_models/500/model_lm_500.sav', 'rb'))
+loaded_model_sgd=pickle.load(open('saved_models/500/model_sgd_500.sav', 'rb'))
+loaded_model_mlp=pickle.load(open('saved_models/500/model_mlp_500.sav', 'rb'))
+loaded_model_kmeans=pickle.load(open('saved_models/500/model_clustering_500.sav', 'rb'))
+loaded_model_nb=pickle.load(open('saved_models/500/model_nb_500.sav', 'rb'))
+
+
 result1=0
 result2=0
 result3=0
@@ -62,7 +65,7 @@ def convert_df(data):
 	global y
 	global result1
 	global result2
-	global result3
+	global result3, result0
 	global count
 	global kmeans
 	if data.isEmpty():
@@ -120,6 +123,10 @@ def convert_df(data):
 	
 	x = [np.concatenate(i) for i in x]
 	
+	result0=result0+loaded_model_nb.score(x,y)
+	print("Logistic regression accuracy: ",result0)
+	
+	
 	kmeans=MiniBatchKMeans(n_clusters=2, random_state=0, batch_size=1000)
 	kmeans=kmeans.partial_fit(x)
 	
@@ -147,28 +154,29 @@ ssc.start()
 ssc.awaitTermination(50)
 ssc.stop()
 
+avg0=(result0*100)/count
 avg1=(result1*100)/count
 avg2=(result2*100)/count
 avg3=(result3*100)/count
 
-results=[avg1, avg2, avg3]
-names=['Logistic Regression', 'SGD Classifier', 'MLP Classifer']
+results=[avg0, avg1, avg2, avg3]
+names=['NB', 'Logistic Regression', 'SGD Classifier', 'MLP Classifer']
 
-#plt.bar(names, results)
-#plt.title("Average performance of models on test dataset (batch size 1000)")
-#plt.show()
+plt.bar(names, results)
+plt.title("Average performance of models on test dataset (batch size 500)")
+plt.show()
 
 
 #clustering
-kpred=kmeans.predict(x)
-print(kpred)
-pca=PCA(n_components=2)
-scatter_plot_points=pca.fit_transform(x)
-colors=['r','b']
-x_axis=[o[0] for o in scatter_plot_points]
-y_axis=[o[1] for o in scatter_plot_points]
-fig, ax=plt.subplots(figsize=(20,10))
-ax.scatter(x_axis, y_axis, c=[colors[d] for d in kpred])
-plt.show()
+#kpred=kmeans.predict(x)
+#print(kpred)
+#pca=PCA(n_components=2)
+#scatter_plot_points=pca.fit_transform(x)
+#colors=['r','b']
+#x_axis=[o[0] for o in scatter_plot_points]
+#y_axis=[o[1] for o in scatter_plot_points]
+#fig, ax=plt.subplots(figsize=(20,10))
+#ax.scatter(x_axis, y_axis, c=[colors[d] for d in kpred])
+#plt.show()
 
 

@@ -17,7 +17,13 @@ from pyspark.sql.functions import array
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.neural_network import MLPClassifier
 import matplotlib.pyplot as plt
+from sklearn.cluster import MiniBatchKMeans
+from sklearn.decomposition import PCA
+from sklearn.naive_bayes import BernoulliNB
+from sklearn.naive_bayes import GaussianNB
+from sklearn.preprocessing import MinMaxScaler
 
+import seaborn as sns
 import pickle
 from sklearn import model_selection
 import pyspark.sql.types as tp
@@ -29,12 +35,14 @@ import sklearn.linear_model as lm
 from pyspark.sql import Row, Column
 import sys
 
+#creating Spark and Streaming Context
 sc = SparkContext("local[2]", "APSU")
 ssc = StreamingContext(sc, 1)
 sql_context=SQLContext(sc)
 flag=0
 #model=lm.LogisticRegression(warm_start=True)
 
+#Parse json data
 def convert_jsn(data):
 	jsn=json.loads(data)
 	l=list()
@@ -43,8 +51,9 @@ def convert_jsn(data):
 		l.append(rows)
 	return l 	
 
+#convert to dataframe
 def convert_df(data):
-	global model, model_lm, model_sgd, model_mlp, result2,result3, result1, x, y
+	global model, model_lm, model_sgd, model_mlp, result2,result3, result1, x, y, kmeans, new_df, model_nb, result0
 	if data.isEmpty():
 		return
 
@@ -57,12 +66,14 @@ def convert_df(data):
 	except:
 		return
 	#df.show()
+	
+#adding a row with the target variable as ham to ensure uniform encoding for all batches
 	data2=[('ham','ham','ham')]
 	newRow=ss.createDataFrame(data2, col)
 	df=df.union(newRow)
 	#df.show(11)
 		
-	
+#Pipeline for preprocessing	
 	print('\n\nDefining the  stages.................\n')
 	df_new=df
 
@@ -81,6 +92,7 @@ def convert_df(data):
 	
 	print("Word2vec done")
 
+#
 	
 	indexer = StringIndexer(inputCol="feature2", outputCol="categoryIndex", stringOrderType='alphabetAsc')
 
@@ -103,6 +115,18 @@ def convert_df(data):
 	y=np.array(new_df_target.select('categoryIndex').collect())
 	
 	x = [np.concatenate(i) for i in x]
+	
+	#scaler=MinMaxScaler()
+	#scaler.fit(x)
+	#x_scaled=scaler.transform(x)
+	
+	model_nb=GaussianNB()
+	model_nb.partial_fit(x, y.ravel(), classes=[0.0, 1.0])
+	result0=model_nb.score(x,y)
+	print("Naive Bayes Gaussian accuracy: ", result0)
+	
+	kmeans=MiniBatchKMeans(n_clusters=2, random_state=0, batch_size=500)
+	kmeans=kmeans.partial_fit(x)
 
 	
 	model_lm=lm.LogisticRegression(warm_start=True)
@@ -135,23 +159,31 @@ lines = ssc.socketTextStream("localhost",6100).map(convert_jsn).foreachRDD(conve
 
 
 ssc.start() 
-ssc.awaitTermination(150)
+ssc.awaitTermination(300)
 ssc.stop()
 
-filename='model_lm_1000.sav'
+filename='model_lm_500.sav'
 pickle.dump(model_lm, open(filename, 'wb'))
 print("LM Model saved successfully")
 
-filename='model_sgd_1000.sav'
+filename='model_sgd_500.sav'
 pickle.dump(model_sgd, open(filename, 'wb'))
-print("LM Model saved successfully")
+print("SGD Model saved successfully")
 
-filename='model_mlp_1000.sav'
+filename='model_mlp_500.sav'
 pickle.dump(model_mlp, open(filename, 'wb'))
-print("LM Model saved successfully")
+print("MLP Model saved successfully")
 
-results=[result1, result2, result3]
-names=['Logistic Regression', 'SGD Classifier', 'MLP Classifer']
+filename='model_clustering_500.sav'
+pickle.dump(kmeans, open(filename, 'wb'))
+print("Clustering Model saved successfully")
+
+filename='model_nb_500.sav'
+pickle.dump(model_nb, open(filename, 'wb'))
+print("Naive Bayes Model saved successfully")
+
+results=[result0, result1, result2, result3]
+names=['Gaussian Naive Bayes', 'Logistic Regression', 'SGD Classifier', 'MLP Classifer']
 
 #filename='final accuracies'
 #file1=open(filename, 'w')
@@ -161,5 +193,21 @@ names=['Logistic Regression', 'SGD Classifier', 'MLP Classifer']
 
 plt.bar(names, results)
 plt.show()
+
+#clustering
+#kpred=kmeans.predict(x)
+#print(kpred)
+#pca=PCA(n_components=2)
+#scatter_plot_points=pca.fit_transform(x)
+#colors=['r','b']
+#x_axis=[o[0] for o in scatter_plot_points]
+#y_axis=[o[1] for o in scatter_plot_points]
+#fig, ax=plt.subplots(figsize=(20,10))
+#ax.scatter(x_axis, y_axis, c=[colors[d] for d in kpred])
+#plt.show()
+
+
+
+
 
 
